@@ -60,11 +60,7 @@ if( $WaitingPosts === false){
                     $raw_info = implode('<br />', $output);
                     $info = serialize($output);
                     
-                    // CONVERT .avi and .mov and other formats to mp4
                     
-                    //convert_to_mp4($filepath,$associated_attachments['attachment_id'], $blog_id);
-                    //convert4mobile
-                    $mobile_compress_info = compress4mobile($filepath);
                     //3. Create thumbnails using php
                     $sizes = array(
                         array(
@@ -142,6 +138,12 @@ if( $WaitingPosts === false){
                     manage_postmeta($post['post_id'], 'queue_raw_info', $raw_info, $mysqlConnect,$mysqlPrefix, $blog_id);
                     manage_postmeta($post['post_id'], 'mobile_compress_info', $mobile_compress_info, $mysqlConnect,$mysqlPrefix, $blog_id);
                     manage_postmeta($post['post_id'], 'queue_status', 'uncompressed', $mysqlConnect,$mysqlPrefix, $blog_id);
+                    
+                    // CONVERT .avi and .mov and other formats to mp4
+                    
+                    //convert_to_mp4($filepath,$associated_attachments['attachment_id'], $blog_id);
+                    //convert4mobile
+                    $mobile_compress_info = compress4mobile($filepath);
                 }
             }
         }
