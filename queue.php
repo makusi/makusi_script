@@ -1,58 +1,92 @@
 <?php
+/**
+ * This file checks wordpress custom type "videos" in order to see which files are waiting 
+ * queue.php depends on the lib/functions.php file which provides with basic functionality
+ *
+ * @package ProcessVideoQueue
+ */
 
+/*
+ * 1. Get array with waiting posts. Exit on false.
+ * 2. Loop each post and obtain associated attachments using the post_parent column relatioship
+ * 3. Check if attached file is missing.
+ * 4. Run ffmpeg to get one thumbnail
+ * 5. Resize thumbnails 
+ * 6. Store thumbnail info into database
+ * 7. Store metadata into "videos" custom types
+ * 8. Run ffmpeg to create a webm file.
+ * 9. Store ffmpeg2webm info as metadata into "videos" custom types
+ * 
+ *  */
 include_once('config.php');
 include_once('lib/functions.php');
 
 $mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
-//Leer la cola
-//tabla wp-video-queue
-// 1. indice
-// 2. path
-// 3. url
-// 4. status
-// esta tabla es alimentada por functions.php en la carpeta del tema, esta cola
-
-/* SELECCIONAR los posts en espera queue_status = 'waiting' */
+/*
+ * 1. Get array with waiting posts. Exit on false.
+ * */
+ 
 $WaitingPosts = is_waiting_posts($mysqlConnect,$mysqlPrefix,$blog_id);
 
 if( $WaitingPosts === false){
     echo "No posts ARE WAITING \n";
     exit;
 } else {
+    
     echo "POSTS ARE WAITING \n";
     echo "Num of Posts to be processed: ".$WaitingPosts['numWaitingPosts']."\n";
     $i = 0;
+/*
+ * 2. Loop each post and obtain associated attachments using the post_parent column relatioship
+ * */
     while($post = mysql_fetch_assoc($WaitingPosts['resultSelectWaiting'])){
+        
         echo "Loop: ".$i."\n";
         echo "Post ID: ".$post['post_id']."\n";
         $associated_attachments = get_associated_attachment($post['post_id'],$mysqlConnect,$mysqlPrefix, $blog_id);
+/*
+ * 3. Check if attached file is missing.
+ * */
         if($associated_attachments === false){
+            
             echo "No attachments are associated to ". $post['post_id']."\n";
+            
         } else {
+            
             echo "Number of Attached files: ".$associated_attachments['numAssociatedAttachments']."\n";
             echo "Attachment ID: ".$associated_attachments['attachment_id']."\n";
             $attachedFile = get_attached_file($post['post_id'],$mysqlConnect,$mysqlPrefix, $blog_id);
+            
             if($attachedFile === false ){
                 echo "No path was provided for this attachment_id ".$associated_attachments['attachment_id']."\n";
             } elseif(is_in_trash($post['post_id'], $mysqlConnect,$mysqlPrefix, $blog_id) === true) {
                 echo "In trash attachment_id ".$post['post_id']."\n";
             } else {
+                
                 echo "Path: ".$attachedFile['path']."\n";
                 $filepath = $root.$attachedFile['path'];
                 $urlpath = $urlroot.$attachedFile['path'];
                 echo "FilePath: ".$filepath."\n";
+                
                 if(!is_file($filepath)){
+                    
                     echo "FILE NOT FOUND: ".$filepath."\n";
                     //Update from queue
                     mysql_query('UPDATE '.$mysqlPrefix.'_'.$blog_id.'_postmeta
                                     SET meta_value = "missing"
                                     WHERE post_id='.$post['post_id'].'
                                     AND meta_key="queue_status"',$mysqlConnect);
+                
+                    
                 } else {
+ /*
+ * 4. Run ffmpeg to get one thumbnail
+ * */                    
                     $output = array();
-                    $videolength=get_video_duration($post['post_id'],$mysqlConnect,$mysqlPrefix,$blog_id);
+                    $videolength = get_video_duration($post['post_id'],$mysqlConnect,$mysqlPrefix,$blog_id);
                     $extractionpoint = intval($videolength/2);
+                    manage_postmeta($post['post_id'], 'queue_status', 'processing', $mysqlConnect,$mysqlPrefix, $blog_id);
                     //$ffmpegCommand = "sudo /usr/local/bin/ffmpeg/ffmpeg -y -i ".$filepath." -vf \"thumbnail\" -ss 7 -frames:v 1 -vsync vfr ".path_without_extension($filepath).".png 2>&1";
                     $ffmpegCommand = "sudo /usr/local/bin/ffmpeg/ffmpeg -y -i ".$filepath." -ss ".$extractionpoint." -frames:v 1 -vsync vfr ".path_without_extension($filepath).".jpg 2>&1";
 
@@ -60,8 +94,9 @@ if( $WaitingPosts === false){
                     $raw_info = implode('<br />', $output);
                     $info = serialize($output);
                     
-                    
-                    //3. Create thumbnails using php
+/*                    
+ * 5. Resize thumbnails 
+ */
                     $sizes = array(
                         array(
                             'sizename' => 'home-screen',
@@ -100,18 +135,16 @@ if( $WaitingPosts === false){
                             )
                     );
                     create_thumbnails(video_jpg($filepath),$sizes);
+/*                    
+ * 6. Store thumbnail info into database
+*/
                     
-                    //4. META DATA
-                    //4.1 Obtain meta data from wp_3_postmeta
-
                     $metadata = get_meta_data($associated_attachments['attachment_id'],$mysqlConnect,$mysqlPrefix, $blog_id);
-                    var_dump($metadata);
+                    
                     if($metadata != false){
                         //4.2 Metadata is stored as a json string and must be converted to an array.
                         $metadataArray = unserialize($metadata['meta_value']);
-                        //echo "File Size:";
-                        //echo $metadataArray['filesize'];
-                        //echo "\n";
+                        
                         $urlWithoutExtension = path_without_extension($urlpath);
                         $pathWithoutExtension = path_without_extension($filepath);
                         //4.3 Add sizes subarray to metadata
@@ -130,20 +163,20 @@ if( $WaitingPosts === false){
                         echo "\n";
                     }
 
-                    //6. Update status of video file in queue table
-    
-                    //FIND OUT IF THIS FILE HAS BEEN CONVERTED IF NOT 
-                    $mysqlConnect = connect_db();
+/*
+ *  7. Store metadata into "videos" custom types
+ */
+                    $mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
                     manage_postmeta($post['post_id'], 'queue_info', $info, $mysqlConnect,$mysqlPrefix, $blog_id);
                     manage_postmeta($post['post_id'], 'queue_raw_info', $raw_info, $mysqlConnect,$mysqlPrefix, $blog_id);
-                    
                     manage_postmeta($post['post_id'], 'queue_status', 'uncompressed', $mysqlConnect,$mysqlPrefix, $blog_id);
-                    
-                    // CONVERT .avi and .mov and other formats to mp4
-                    
-                    //convert_to_mp4($filepath,$associated_attachments['attachment_id'], $blog_id);
-                    //convert4mobile
+/*
+ * 8. Run ffmpeg to create a webm file.
+ */
                     $mobile_compress_info = compress4mobile($filepath);
+ /*
+ * 9. Run ffmpeg to create a webm file.
+ */
                     manage_postmeta($post['post_id'], 'mobile_compress_info', $mobile_compress_info, $mysqlConnect,$mysqlPrefix, $blog_id); 
                 }
             }

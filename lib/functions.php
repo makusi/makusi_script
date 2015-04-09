@@ -1,6 +1,14 @@
 <?php
+
+/**
+ * This file contains all the functions that are needed for queue.php 
+ *
+ * @package ProcessVideoQueue
+ */
 include_once('resize-class.php');
-$mysqlPrefix = "ltlaxkw6";
+include_once('config.php');
+
+//Connects to the database and returns a connexion resource.
 function connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase){
     //MYSQL Connnection data
     
@@ -10,27 +18,20 @@ function connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase){
     return $mysqlConnect;
 }
 // FUNCTION TO PROCESS QUEUE AND GENERATE THUMBNAILS WITH FFMPEG
-
+// get extention
 function ext($path){
     return pathinfo($path, PATHINFO_EXTENSION);
 }
-function remove_ext($path){
-	return substr($path,0,strlen($path)-4);
-}
+
 
 function without_ext($path){
 	echo remove_ext($path);
 }
-
-function video_png($path){
-	return remove_ext($path).".png";
-}
-
-
+//obtain the address in jpg corresponding to the video
 function video_jpg($path){
-	return remove_ext($path).".jpg";
+	return path_without_extension($path).".jpg";
 }
-
+//remove extension from url
 function url_without_extension($path){
 	$pathArray = explode('/', $path);
 	$pathArrayReverse = array_reverse($pathArray);
@@ -39,12 +40,12 @@ function url_without_extension($path){
 	$filenameArrayReverse = $filenameArray;
 	return $filenameArray[0];
 }
-
+//remove extension from path
 function path_without_extension($path){
 	return $withoutExt = preg_replace("/\\.[^.\\s]{3,4}$/","", $path);
 }
 
-
+//create thumbnail
 function create_thumbnail($path, $dst_w, $dst_h){
     // *** 1) Initialise / load image
 	$resizeObj = new resize($path);
@@ -56,6 +57,7 @@ function create_thumbnail($path, $dst_w, $dst_h){
 	$resizeObj -> saveImage(remove_ext($path).'_'.$dst_w.'x'.$dst_h.'.jpg', 72);
 }
 
+//add metadata to a post
 function manage_postmeta($post_id, $meta_key, $meta_value, $mysqlConnect,$mysqlPrefix, $blog_id){
     //1. does the meta field already exist?
    $query = "SELECT * FROM ".$mysqlPrefix."_".$blog_id."_postmeta WHERE post_id = ".$post_id." AND meta_key='".$meta_key."'";
@@ -67,7 +69,7 @@ function manage_postmeta($post_id, $meta_key, $meta_value, $mysqlConnect,$mysqlP
    } else {
        //UPDATE
        $query = "UPDATE ".$mysqlPrefix."_".$blog_id."_postmeta SET meta_value='".mysql_real_escape_string($meta_value)."' WHERE post_id=".$post_id." AND meta_key='".$meta_key."'";
-       mysql_query($query);
+       mysql_query($query) or die(mysql_error());
    }
 }
 
@@ -75,6 +77,8 @@ function obtain_month($path){
     $path_array = explode('/',$path);
     return($path_array[1]);
 }
+
+// Get the array of waiting posts.
 function is_waiting_posts($mysqlConnect,$mysqlPrefix,$blog_id){
     $resultSelect = mysql_query("SELECT * 
 				FROM ".$mysqlPrefix."_".$blog_id."_postmeta 
@@ -92,7 +96,7 @@ function is_waiting_posts($mysqlConnect,$mysqlPrefix,$blog_id){
     }
 }
 
-
+//get array of uncompressed posts
 function is_uncompressed_posts($mysqlConnect,$mysqlPrefix, $blog_id){
     $resultSelect = mysql_query("SELECT * 
 				FROM ".$mysqlPrefix."_".$blog_id."_postmeta 
@@ -110,6 +114,7 @@ function is_uncompressed_posts($mysqlConnect,$mysqlPrefix, $blog_id){
     }
 }
 
+//get attached file of a to a post_id
 function get_attached_file($post_id,$mysqlConnect,$mysqlPrefix, $blog_id){
     $associatedAttachment = get_associated_attachment($post_id, $mysqlConnect,$mysqlPrefix, $blog_id);
     $resultAttachmentFileSelect = mysql_query("SELECT meta_value 
@@ -126,7 +131,7 @@ function get_attached_file($post_id,$mysqlConnect,$mysqlPrefix, $blog_id){
         return false;
     }    
 }
-
+//Get the duration of a video.
 function get_video_duration($post_id,$mysqlConnect,$mysqlPrefix, $blog_id){
     $associatedAttachment = get_associated_attachment($post_id, $mysqlConnect,$mysqlPrefix, $blog_id);
     echo "SELECT meta_value 
@@ -145,6 +150,8 @@ function get_video_duration($post_id,$mysqlConnect,$mysqlPrefix, $blog_id){
     }
     return $array['length'];
 }
+
+//check if post is in trash
 function is_in_trash($post_id, $mysqlConnect,$mysqlPrefix, $blog_id){
     $selectPostsInTrash = mysql_query("SELECT * FROM ".$mysqlPrefix."_".$blog_id."_postmeta 
                                             WHERE meta_key = '_wp_trash_meta_status' 
@@ -159,11 +166,11 @@ function is_in_trash($post_id, $mysqlConnect,$mysqlPrefix, $blog_id){
     }
 }
 
+//Get metadata from an attachment
 function get_meta_data($attachment_id,$mysqlConnect,$mysqlPrefix, $blog_id){
     
     $mysqlConnect = connect_db();
     $metadataResult = mysql_query("SELECT meta_id, meta_value FROM ".$mysqlPrefix."_".$blog_id."_postmeta WHERE post_id=".$attachment_id." AND meta_key='_wp_attachment_metadata'", $mysqlConnect)or die(mysql_error());
-    //var_dump($metadataResult);
     if($metadataResult != NULL){
         $numRows = mysql_num_rows($metadataResult);
         if($numRows > 0){
@@ -175,7 +182,7 @@ function get_meta_data($attachment_id,$mysqlConnect,$mysqlPrefix, $blog_id){
         return false;
     }  
 }
-
+//Insert metadata for sizes
 function insert_meta_data_sizes($pathWithoutExtension,$urlWithoutExtension, $sizes){
     $i=0;
     $array_results = array();
@@ -193,13 +200,14 @@ function insert_meta_data_sizes($pathWithoutExtension,$urlWithoutExtension, $siz
     return $array_results;
 }
 
-
+//Create all the thumbnails
 function create_thumbnails($path,$sizes){
     foreach($sizes as $size){
         create_thumbnail($path,$size['width'],$size['height']); 
     }
 }
 
+//Convert to reduces mp4 file
 function convert_to_mp4($filepath,$attachment_id, $blog_id){
     global $mysqlPrefix;
     echo "Filepath:\n";
@@ -221,13 +229,8 @@ function convert_to_mp4($filepath,$attachment_id, $blog_id){
     } else {
     }
 }
-
+//get associated attachment to post id
 function get_associated_attachment($post_id, $mysqlConnect,$mysqlPrefix, $blog_id){
-    echo "SELECT ID 
-                            FROM ".$mysqlPrefix."_".$blog_id."_posts
-                            WHERE post_parent = ".$post_id." 
-                            AND post_type='attachment'
-                            AND post_mime_type='video/mp4'";
     $query = mysql_query("SELECT ID 
                             FROM ".$mysqlPrefix."_".$blog_id."_posts
                             WHERE post_parent = ".$post_id." 
@@ -251,27 +254,10 @@ function get_associated_attachment($post_id, $mysqlConnect,$mysqlPrefix, $blog_i
     }
 }
 
-function get_associated_attachment_previous($post_id, $mysqlConnect,$mysqlPrefix, $blog_id){
-    $resultAttachmentSelect = mysql_query("SELECT meta_value 
-    					FROM ".$mysqlPrefix."_".$blog_id."_postmeta 
-    					WHERE (meta_key = 'file' 
-                                        OR meta_key = '_wp_attached_file')
-    					AND post_id = ".$post_id, 
-    					$mysqlConnect);
-    $numAssociatedAttachments = mysql_num_rows($resultAttachmentSelect);
-    if($numAssociatedAttachments > 0){
-        $array['numAssociatedAttachments'] = $numAssociatedAttachments;
-        $array['attachment_id'] = mysql_result( $resultAttachmentSelect,0) or die(mysql_error());
-        $array['resultAttachmentSelect'] = $resultAttachmentSelect;
-        return $array;
-    } else {
-        return false;
-    }
-}
-
+//Compress file for mobile phone
 function compress4mobile($inputPath){
     $outputPath = path_without_extension($inputPath).".webm";
-    $ffmpeg = "sudo /usr/local/bin/ffmpeg/ffmpeg -i ".$inputPath." -pass 1 -passlogfile ".$inputPath." -threads 16  -keyint_min 0 -g 250 -skip_threshold 0 -qmin 1 -qmax 51 -vcodec libvpx -b:v 204800 -s 320x240 -aspect 4:3 -an -f webm -y NUL && sudo /usr/local/bin/ffmpeg/ffmpeg -i ".$inputPath." -pass 2 -passlogfile ".$inputPath." -threads 16  -keyint_min 0 -g 250 -skip_threshold 0 -qmin 1 -qmax 51 -vcodec libvpx -b:v 204800 -s 320x240 -aspect 4:3 -acodec libvorbis -ac 2 -y ".$outputPath." 2>&1";
+    $ffmpeg = "sudo /usr/local/bin/ffmpeg/ffmpeg -i ".$inputPath." -pass 1 -passlogfile ".$inputPath." -threads 16  -keyint_min 0 -g 250 -skip_threshold 0 -qmin 1 -qmax 51 -vcodec libvpx-vp9 -b:v 204800 -s 320x240 -aspect 4:3 -an -f webm -y NUL && sudo /usr/local/bin/ffmpeg/ffmpeg -i ".$inputPath." -pass 2 -passlogfile ".$inputPath." -threads 16  -keyint_min 0 -g 250 -skip_threshold 0 -qmin 1 -qmax 51 -vcodec libvpx-vp9 -b:v 204800 -s 320x240 -aspect 4:3 -acodec libvorbis -ac 2 -y ".$outputPath." 2>&1";
     exec($ffmpeg,$output);
     return $raw_info = implode('<br />', $output);
 }
