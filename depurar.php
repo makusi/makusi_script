@@ -1,10 +1,9 @@
 <?php
 
-$urlroot = "http://www.makusi.tv/hosting/wp-content/uploads/sites/3/";
-$root = "/home/virtualmin/makusi.tv/public_html/wp-content/uploads/sites/3/";
+include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
 /*Get attachments where parent-post =0 and attachments are video files.*/
 

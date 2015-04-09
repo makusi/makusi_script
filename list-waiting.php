@@ -1,9 +1,9 @@
 <?php
 
-$mysqlPrefix = "ltlaxkw6";
+include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
 $WaitingPosts = is_waiting_posts($mysqlConnect,$mysqlPrefix);
 

@@ -3,7 +3,7 @@
 include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
 //Leer la cola
 //tabla wp-video-queue
@@ -136,7 +136,7 @@ if( $WaitingPosts === false){
                     $mysqlConnect = connect_db();
                     manage_postmeta($post['post_id'], 'queue_info', $info, $mysqlConnect,$mysqlPrefix, $blog_id);
                     manage_postmeta($post['post_id'], 'queue_raw_info', $raw_info, $mysqlConnect,$mysqlPrefix, $blog_id);
-                    manage_postmeta($post['post_id'], 'mobile_compress_info', $mobile_compress_info, $mysqlConnect,$mysqlPrefix, $blog_id);
+                    
                     manage_postmeta($post['post_id'], 'queue_status', 'uncompressed', $mysqlConnect,$mysqlPrefix, $blog_id);
                     
                     // CONVERT .avi and .mov and other formats to mp4
@@ -144,6 +144,7 @@ if( $WaitingPosts === false){
                     //convert_to_mp4($filepath,$associated_attachments['attachment_id'], $blog_id);
                     //convert4mobile
                     $mobile_compress_info = compress4mobile($filepath);
+                    manage_postmeta($post['post_id'], 'mobile_compress_info', $mobile_compress_info, $mysqlConnect,$mysqlPrefix, $blog_id); 
                 }
             }
         }

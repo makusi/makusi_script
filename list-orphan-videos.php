@@ -1,9 +1,9 @@
 <?php
 
-$mysqlPrefix = "ltlaxkw6";
+include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
 $SelectOrphanVideos="SELECT * FROM `".$mysqlPrefix."_3_posts` WHERE `post_type` = 'attachment' AND `post_mime_type` LIKE '%video%' AND `post_parent` = 0";
 $SelectOrphanVideosQuery = mysql_query($SelectOrphanVideos,$mysqlConnect);

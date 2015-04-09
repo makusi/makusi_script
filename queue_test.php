@@ -1,12 +1,9 @@
 <?php
 
-$urlroot = "http://www.makusi.tv/wp-content/uploads/sites/6/";
-$root = "/home/virtualmin/makusi.tv/public_html/wp-content/uploads/sites/6/";
-$mysqlPrefix = "ltlaxkw6";
-$blog_id = 6;
+include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 
 //Leer la cola
 //tabla wp-video-queue

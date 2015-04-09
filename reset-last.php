@@ -1,8 +1,9 @@
 <?php
 
+include_once('config.php');
 include_once('lib/functions.php');
 
-$mysqlConnect = connect_db();
+$mysqlConnect = connect_db($mysqlServer,$mysqlUser,$mysqlPassword,$mysqlDatabase);
 $SelectLast = "SELECT max(meta_id), post_id FROM ltlaxkw6_3_postmeta WHERE post_id=(SELECT max(post_id) FROM ltlaxkw6_3_postmeta)";
 $querySelectLast = mysql_query($SelectLast, $mysqlConnect) or die(mysql_error());
 $mysql_num_rows = mysql_num_rows($querySelectLast);
